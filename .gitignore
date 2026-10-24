@@ -1,0 +1,24 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 构建产物（发到 npm / GitHub Release，不进仓库）
+*.tgz
+
+# 运行时数据
+*.log
+data/
+tmp/
+.tmp/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 本地环境
+.env
+.env.*
+*.local

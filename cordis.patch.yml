@@ -1,0 +1,60 @@
+# ============================================================================
+# dsh-mail-bot —— DSH bundle patch
+# ============================================================================
+# 插件挂载声明。DSH 启动时按 bundle 层栈叠加各插件 patch，本文件把插件
+# 插进 profile 的配置树。
+#
+# 安装：
+#   dsh plugin --profile web add link:<这个目录的绝对路径>
+# 或从 npm：
+#   dsh plugin --profile web add dsh-mail-bot
+#
+# 装完在下面 config 里填自己的邮箱，然后重启 DSH。
+# ============================================================================
+
+- insert:
+    - id: dsh-mail-bot
+      name: dsh-mail-bot
+      config:
+        # ── 邮箱（必填）──────────────────────────────────────────────
+        email: ''
+        # QQ 邮箱的 16 位授权码（不是登录密码）
+        # 获取：QQ邮箱 → 设置 → 账户 → IMAP/SMTP服务 → 生成授权码
+        authCode: ''
+        # 允许指挥你的邮箱白名单（不填就只认 email 自己）
+        allowFrom: []
+
+        # ── 服务器（QQ 邮箱默认，其他邮箱自己改）────────────────────
+        imapHost: imap.qq.com
+        imapPort: 993
+        smtpHost: smtp.qq.com
+        smtpPort: 465
+
+        # ── 轮询 ────────────────────────────────────────────────────
+        pollSeconds: 15
+        taskTimeoutMs: 600000
+        maxReplyChars: 40000
+
+        # ── DSH 调用 ────────────────────────────────────────────────
+        # 留空 = 自动找当前 DSH 的 bin.js
+        dshBin: ''
+        # 用哪个 profile 跑任务（默认 headless）
+        dshProfile: headless
+
+        # 邮件任务的权限：read-only | workspace-write | danger-full-access
+        # 设置页里也能改，这里只是默认值
+        sandbox: workspace-write
+
+        # ── 主动来信 ────────────────────────────────────────────────
+        proactive:
+          enabled: false
+          startHour: 7
+          endHour: 25
+          dailyLimit: 10
+          minGapMinutes: 30
+          maxGapMinutes: 90
+          to: ''
+          subjectPrefix: 主动来信
+          prompt: ''
+          # 背景摘要：每次生成都带上，几百字以内，留空不带
+          context: ''
