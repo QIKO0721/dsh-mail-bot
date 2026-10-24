@@ -140,6 +140,51 @@ ok('saveState 只在 patchState 内部被调用', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+console.log('\n【主动来信并发锁】');
+await okAsync('并发调三次，内部只跑一次', async () => {
+  const bot = new mod.MailBot({}, { email: 'a@b.com', authCode: 'k' });
+  let runs = 0;
+  bot._maybeProactiveInner = async () => {
+    runs++;
+    await new Promise(r => setTimeout(r, 80));   // 模拟 spawn dsh 的耗时
+  };
+  await Promise.all([
+    bot.maybeProactive(),
+    bot.maybeProactive(),
+    bot.maybeProactive()
+  ]);
+  assert.strictEqual(runs, 1, '应该只跑一次，实际跑了 ' + runs + ' 次');
+  assert.strictEqual(bot.proactiveBusy, false, '跑完锁要释放');
+});
+
+await okAsync('前一次跑完后，下一次能正常进入', async () => {
+  const bot = new mod.MailBot({}, { email: 'a@b.com', authCode: 'k' });
+  let runs = 0;
+  bot._maybeProactiveInner = async () => { runs++; };
+  await bot.maybeProactive();
+  await bot.maybeProactive();
+  assert.strictEqual(runs, 2, '串行调用两次应该跑两次，实际 ' + runs);
+});
+
+await okAsync('内部抛异常，锁也会释放', async () => {
+  const bot = new mod.MailBot({}, { email: 'a@b.com', authCode: 'k' });
+  let runs = 0;
+  bot._maybeProactiveInner = async () => { runs++; throw new Error('boom'); };
+  try { await bot.maybeProactive(); } catch { /* 预期内 */ }
+  assert.strictEqual(bot.proactiveBusy, false, '异常后锁必须释放，否则永久卡死');
+  bot._maybeProactiveInner = async () => { runs++; };
+  await bot.maybeProactive();
+  assert.strictEqual(runs, 2, '锁释放后应该能再进');
+});
+
+ok('源码里 maybeProactive 带锁', () => {
+  const src = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8');
+  const m2 = src.match(/async maybeProactive\(\)\s*\{[\s\S]*?\n  \}/);
+  assert.ok(m2, '找得到 maybeProactive');
+  assert.ok(/proactiveBusy/.test(m2[0]), 'maybeProactive 里必须有 proactiveBusy 判断');
+});
+
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log(`  通过 ${pass}  失败 ${fail}`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
