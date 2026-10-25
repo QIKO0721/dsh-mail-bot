@@ -185,6 +185,77 @@ ok('源码里 maybeProactive 带锁', () => {
   assert.ok(/proactiveBusy/.test(m2[0]), 'maybeProactive 里必须有 proactiveBusy 判断');
 });
 
+// ---------------------------------------------------------------------------
+console.log('\n【单实例保护】');
+ok('新实例 start 时会把旧实例按死', () => {
+  const A = new mod.MailBot({}, { email: '', authCode: '' });
+  A.running = true;
+  A.start();                       // 没配邮箱，start 直接 return，但会占住 ACTIVE_BOT
+
+  const B = new mod.MailBot({}, { email: '', authCode: '' });
+  B.start();                       // 应该检测到 A 还在，强制停掉它
+
+  assert.strictEqual(A.running, false, '旧实例的 running 必须被置为 false');
+});
+
+ok('forceStop 能同步清掉定时器和连接引用', () => {
+  const C = new mod.MailBot({}, { email: '', authCode: '' });
+  C.running = true;
+  let timerAlive = true;
+  C.proactiveTimer = setInterval(() => {}, 100000);
+  C.client = { close() { timerAlive = false; }, logout() {} };
+  C.forceStop();
+  assert.strictEqual(C.running, false, 'running 应为 false');
+  assert.strictEqual(C.proactiveTimer, null, '定时器应被清空');
+  assert.strictEqual(C.client, null, '连接引用应被清空');
+  assert.strictEqual(timerAlive, false, '应该调用了 close()');
+});
+
+ok('stop() 走的是 forceStop', () => {
+  const src = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8');
+  const m2 = src.match(/stop\(\)\s*\{[\s\S]*?\n  \}/);
+  assert.ok(m2, '找得到 stop');
+  assert.ok(/this\.forceStop\(\)/.test(m2[0]), 'stop 里应该调 forceStop');
+  assert.ok(!/client\.logout/.test(m2[0]), 'stop 里不该再自己 logout');
+});
+
+ok('源码里有模块级 ACTIVE_BOT', () => {
+  const src = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8');
+  assert.ok(/let ACTIVE_BOT = null/.test(src), '应该有模块级单例变量');
+  assert.ok(/ACTIVE_BOT && ACTIVE_BOT !== this/.test(src), 'start 里应该判旧实例');
+  assert.ok(/ACTIVE_BOT = this/.test(src), 'start 里应该登记自己');
+});
+
+// ---------------------------------------------------------------------------
+console.log('\n【连接循环代数】');
+ok('start 会递增 loopGen', () => {
+  const D = new mod.MailBot({}, { email: '', authCode: '' });
+  const before = D.loopGen;
+  D.start();                        // 没配邮箱，但 loopGen 已经加了
+  assert.strictEqual(D.loopGen, before + 1, 'loopGen 应该 +1');
+});
+
+ok('连续 start 会一直递增（旧循环逐代失效）', () => {
+  const E = new mod.MailBot({}, { email: '', authCode: '' });
+  const g0 = E.loopGen;
+  E.start(); E.start(); E.start();
+  assert.strictEqual(E.loopGen, g0 + 3, '三次 start 应该是 +3');
+});
+
+ok('源码里 connectionLoop 带代数检查', () => {
+  const src = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8');
+  const m2 = src.match(/async connectionLoop\(\)\s*\{[\s\S]*?\n  \}/);
+  assert.ok(m2, '找得到 connectionLoop');
+  assert.ok(/const gen = \+\+this\.loopGen/.test(m2[0]), '循环开头要取代数');
+  assert.ok(/gen === this\.loopGen/.test(m2[0]), 'while 条件要检查代数');
+});
+
+ok('holdConnection 也接受代数', () => {
+  const src = fs.readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8');
+  assert.ok(/async holdConnection\(gen\)/.test(src), 'holdConnection 应接受 gen');
+  assert.ok(/await this\.holdConnection\(gen\)/.test(src), '调用时要传 gen');
+});
+
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log(`  通过 ${pass}  失败 ${fail}`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');

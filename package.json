@@ -1,6 +1,6 @@
 {
   "name": "dsh-mail-bot",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "DSH 邮件助手插件：手机发邮件遥控 DSH 干活，支持主动来信",
   "keywords": [
     "dsh",
